@@ -1,0 +1,251 @@
+# octotools/tools/qiskit_code_assembler/tool.py
+
+from typing import Any, Dict, List, Optional
+import os
+from datetime import datetime
+
+from octotools.tools.base import BaseTool
+
+class qiskit_Code_Assembler_Tool(BaseTool):
+    """
+    代码组装工具
+    将代码片段组装成完整的可执行Python文件
+    """
+    
+    require_llm_engine = False
+
+    def __init__(self):
+        super().__init__(
+            tool_name="qiskit_Code_Assembler_Tool",
+            tool_description="Assemble code fragments into complete Qiskit solution and save as .py file.",
+            tool_version="1.0.0",
+            input_types={
+                "code_fragments": "list - List of code strings from previous tools",
+                "solution_name": "str - Name for the solution (default: auto-generated)",
+                "description": "str - Optional description for the solution",
+                "save_file": "bool - Whether to save as .py file (default: True)"
+            },
+            output_type='dict - {"complete_code": str, "file_path": str?, "metadata": {...}}',
+            demo_commands=[
+                {
+                    "command": 'tool.execute(code_fragments=code_fragments)',
+                    "description": "Assemble code fragments and save to auto-named file"
+                },
+                {
+                    "command": 'tool.execute(code_fragments=code_fragments, solution_name="my_tfim_vqe", description="8-qubit TFIM VQE")',
+                    "description": "Assemble with custom name and description"
+                }
+            ],
+            user_metadata={
+                "routing": {
+                    "task_type": "CodeAssembly",
+                    "backend": "qiskit",
+                    "model": "universal",
+                    "position": "final",
+                    "requires_llm_engine": False,
+                    "consumes": ["code_fragments"],
+                    "produces": ["complete_code"]
+                },
+                "inputs": {
+                    "required_fields": ["code_fragments"],
+                    "optional_fields": ["solution_name", "description", "save_file"],
+                    "defaults": {
+                        "save_file": True
+                    }
+                },
+                "outputs": {
+                    "output_type": "dict",
+                    "standard_variable": "complete_code"
+                }
+            }
+        )
+
+    def get_metadata(self):
+        """获取工具元数据"""
+        metadata = super().get_metadata()
+        return metadata
+
+    def _extract_and_dedupe_imports(self, code_fragments: List[str]) -> List[str]:
+        """提取和去重import语句"""
+        import_lines = set()
+        
+        for fragment in code_fragments:
+            lines = fragment.split('\n')
+            for line in lines:
+                stripped = line.strip()
+                if (stripped.startswith('import ') or 
+                    stripped.startswith('from ') and 'import' in stripped):
+                    import_lines.add(stripped)
+        
+        # 排序imports：标准库优先，然后第三方库
+        standard_imports = []
+        third_party_imports = []
+        
+        for imp in sorted(import_lines):
+            if 'qiskit' in imp or 'numpy' in imp or 'scipy' in imp:
+                third_party_imports.append(imp)
+            else:
+                standard_imports.append(imp)
+        
+        # 合并
+        all_imports = []
+        if standard_imports:
+            all_imports.extend(standard_imports)
+        if third_party_imports:
+            if standard_imports:
+                all_imports.append('')  # 空行分隔
+            all_imports.extend(third_party_imports)
+        
+        return all_imports
+
+    def _remove_imports_from_fragment(self, fragment: str) -> str:
+        """从代码片段中移除import语句"""
+        lines = fragment.split('\n')
+        filtered_lines = []
+        
+        for line in lines:
+            stripped = line.strip()
+            if (not stripped.startswith('import ') and 
+                not (stripped.startswith('from ') and 'import' in stripped)):
+                filtered_lines.append(line)
+        
+        return '\n'.join(filtered_lines).strip()
+
+    def _indent_code(self, code: str, indent: str) -> str:
+        """给代码块添加缩进"""
+        lines = code.split('\n')
+        indented_lines = []
+        
+        for line in lines:
+            if line.strip():  # 非空行才缩进
+                indented_lines.append(indent + line)
+            else:
+                indented_lines.append('')
+        
+        return '\n'.join(indented_lines)
+
+    def _assemble_code(self, code_fragments: List[str], solution_name: str, 
+                      description: Optional[str]) -> str:
+        """组装代码片段为完整解决方案"""
+        
+        # 生成文件头
+        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        header = f'''#!/usr/bin/env python3
+"""
+{solution_name.replace('_', ' ').title()}
+{description or 'Qiskit VQE quantum computing solution'}
+
+Generated by qiskit_Code_Assembler_Tool
+Created: {timestamp}
+"""
+
+'''
+        
+        # 提取并合并imports
+        imports = self._extract_and_dedupe_imports(code_fragments)
+        imports_section = '\n'.join(imports) + '\n\n'
+        
+        # 处理代码片段（移除import语句）
+        processed_fragments = []
+        for fragment in code_fragments:
+            processed = self._remove_imports_from_fragment(fragment)
+            if processed.strip():  # 只添加非空片段
+                processed_fragments.append(processed)
+        
+        # 组合所有代码段
+        code_sections = [header, imports_section]
+        
+        # 添加main执行包装器
+        main_start = f'''if __name__ == "__main__":
+    print("=" * 50)
+    print("Running {solution_name.replace('_', ' ').title()}")
+    print("=" * 50)
+    print()
+    
+'''
+        
+        code_sections.append(main_start)
+        
+        # 添加处理后的片段（带缩进）
+        for i, fragment in enumerate(processed_fragments):
+            indented_fragment = self._indent_code(fragment, '    ')
+            code_sections.append(indented_fragment)
+            
+            if i < len(processed_fragments) - 1:
+                code_sections.append('')  # 片段间添加空行
+        
+        # 添加main结尾
+        main_end = '''
+    print()
+    print("=" * 50)
+    print("Solution completed!")
+    print("=" * 50)'''
+        
+        code_sections.append(main_end)
+        
+        return '\n'.join(code_sections)
+
+    def _save_code_to_file(self, code: str, solution_name: str, output_dir: str) -> str:
+        """保存代码到Python文件"""
+        filename = f"{solution_name}.py"
+        file_path = os.path.join(output_dir, filename)
+        
+        with open(file_path, 'w', encoding='utf-8') as f:
+            f.write(code)
+        
+        return os.path.abspath(file_path)
+
+    def execute(
+        self,
+        code_fragments: List[str],
+        solution_name: Optional[str] = None,
+        description: Optional[str] = None,
+        save_file: bool = True
+    ) -> Dict[str, Any]:
+        """
+        组装代码片段为完整解决方案
+        
+        Args:
+            code_fragments: 来自之前工具的代码字符串列表
+            solution_name: 解决方案名称
+            description: 可选的解决方案描述
+            save_file: 是否保存为.py文件
+            
+        Returns:
+            dict: 完整代码、可选文件路径和元数据
+        """
+        
+        # 验证输入
+        if not isinstance(code_fragments, list) or not code_fragments:
+            raise ValueError("code_fragments must be a non-empty list")
+        
+        # 生成解决方案名称
+        if solution_name is None:
+            timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+            solution_name = f"qiskit_vqe_solution_{timestamp}"
+        
+        # 组装完整代码
+        complete_code = self._assemble_code(code_fragments, solution_name, description)
+        
+        result = {
+            "complete_code": complete_code,  # 使用标准变量名
+            "metadata": {
+                "backend": "qiskit",
+                "solution_name": solution_name,
+                "fragments_count": len(code_fragments),
+                "generated_at": datetime.now().isoformat()
+            }
+        }
+        
+        # 保存文件（如果需要）
+        if save_file:
+            try:
+                output_dir = getattr(self, 'output_dir', '.')
+                file_path = self._save_code_to_file(complete_code, solution_name, output_dir)
+                result["file_path"] = file_path
+                result["metadata"]["saved_to"] = file_path
+            except Exception as e:
+                # 保存失败不影响代码生成，只记录错误
+                result["metadata"]["save_error"] = str(e)
+        
+        return result
