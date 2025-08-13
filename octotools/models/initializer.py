@@ -21,16 +21,22 @@ class Initializer:
         self._set_up_tools()
         
         # if vllm, set up the vllm server
-        if model_string.startswith("vllm-"):
+        if model_string and model_string.startswith("vllm-"):
             self.setup_vllm_server()
 
     def get_project_root(self):
-        current_dir = os.path.dirname(os.path.abspath(__file__))
+        # 从当前工作目录开始搜索
+        current_dir = os.getcwd()
         while current_dir != '/':
-            if os.path.exists(os.path.join(current_dir, 'octotools')):
-                return os.path.join(current_dir, 'octotools')
+            octotools_path = os.path.join(current_dir, 'octotools')
+            # 更严格的验证条件：确保是正确的octotools项目
+            if (os.path.exists(octotools_path) and 
+                os.path.exists(os.path.join(current_dir, 'examples')) and
+                os.path.exists(os.path.join(octotools_path, 'tools')) and
+                os.path.exists(os.path.join(octotools_path, 'solver.py'))):
+                return octotools_path
             current_dir = os.path.dirname(current_dir)
-        raise Exception("Could not find project root")
+        raise Exception("Could not find octo project root")
         
     def load_tools_and_get_metadata(self) -> Dict[str, Any]:
         # Implementation of load_tools_and_get_metadata function

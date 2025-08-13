@@ -16,7 +16,6 @@ class Memory:
 
     def _init_file_types(self):
         self.file_types = {
-            'image': ['.jpg', '.jpeg', '.png', '.gif', '.bmp'],
             'text': ['.txt', '.md'],
             'document': ['.pdf', '.doc', '.docx'],
             'code': ['.py', '.js', '.java', '.cpp', '.h'],
@@ -25,7 +24,6 @@ class Memory:
             'presentation': ['.ppt', '.pptx'],
         }
         self.file_type_descriptions = {
-            'image': "An image file ({ext} format) provided as context for the query",
             'text': "A text file ({ext} format) containing additional information related to the query",
             'document': "A document ({ext} format) with content relevant to the query",
             'code': "A source code file ({ext} format) potentially related to the query",

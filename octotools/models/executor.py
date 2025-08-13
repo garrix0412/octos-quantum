@@ -40,14 +40,13 @@ class Executor:
 Task: Generate a precise command to execute the selected tool based on the given information.
 
 Query: {question}
-Image: {image}
 Context: {context}
 Sub-Goal: {sub_goal}
 Selected Tool: {tool_name}
 Tool Metadata: {tool_metadata}
 
 Instructions:
-1. Carefully review all provided information: the query, image path, context, sub-goal, selected tool, and tool metadata.
+1. Carefully review all provided information: the query, context, sub-goal, selected tool, and tool metadata.
 2. Analyze the tool's input_types from the metadata to understand required and optional parameters.
 3. Construct a command or series of commands that aligns with the tool's usage pattern and addresses the sub-goal.
 4. Ensure all required parameters are included and properly formatted.
@@ -87,32 +86,32 @@ Rules:
 Examples (Not to use directly unless relevant):
 
 Example 1 (Single line command):
-Analysis: The tool requires an image path and a list of labels for object detection.
-Command Explanation: We pass the image path and a list containing "baseball" as the label to detect.
+Analysis: The tool requires specific parameters for execution.
+Command Explanation: We pass the required parameters to the tool.
 Generated Command:
 ```python
-execution = tool.execute(image="path/to/image", labels=["baseball"])
+execution = tool.execute(query="example query", parameter="value")
 ```
 
 Example 2 (Multi-line command with data preparation):
-Analysis: The tool requires an image path, multiple labels, and a threshold for object detection.
-Command Explanation: We prepare the data by defining variables for the image path, labels, and threshold, then pass these to the tool.execute() function.
+Analysis: The tool requires multiple parameters that need preparation.
+Command Explanation: We prepare the data by defining variables, then pass these to the tool.execute() function.
 Generated Command:
 ```python
-image = "path/to/image"
-labels = ["baseball", "football", "basketball"]
+query = "example query"
+parameters = ["param1", "param2", "param3"]
 threshold = 0.5
-execution = tool.execute(image=image, labels=labels, threshold=threshold)
+execution = tool.execute(query=query, parameters=parameters, threshold=threshold)
 ```
 
 Example 3 (Multiple executions):
-Analysis: We need to process multiple images for baseball detection.
-Command Explanation: We call the tool for each image path, using the same label and threshold for all.
+Analysis: We need to process multiple items.
+Command Explanation: We call the tool for each item, using the same parameters for all.
 Generated Command:
 ```python
-execution = tool.execute(image="path/to/image1", labels=["baseball"], threshold=0.5)
-execution = tool.execute(image="path/to/image2", labels=["baseball"], threshold=0.5)
-execution = tool.execute(image="path/to/image3", labels=["baseball"], threshold=0.5)
+execution = tool.execute(query="query1", parameters=["param"], threshold=0.5)
+execution = tool.execute(query="query2", parameters=["param"], threshold=0.5)
+execution = tool.execute(query="query3", parameters=["param"], threshold=0.5)
 ```
 
 Some Wrong Examples:
